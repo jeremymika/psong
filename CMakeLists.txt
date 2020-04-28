@@ -30,7 +30,6 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 
-include_directories(${SDL2_INCLUDE_DIR})
 
 #include(get-sdl2_image)
 #include(get-sdl2_ttf)
@@ -96,6 +95,7 @@ include_directories(${OPENGL_INCLUDE_DIR})
 
 
 set(SDL2_INCLUDE_DIR ${DEPENDENCY_INSTALL_DIR}/include)
+include_directories(${SDL2_INCLUDE_DIR})
 
 set(INCLUDE_DIRS
     /usr/local/include
