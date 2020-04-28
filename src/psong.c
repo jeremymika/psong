@@ -1,7 +1,7 @@
 #include <stdio.h>
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_opengl.h>
+#include "SDL2/SDL.h"
+#include "SDL2/SDL_opengl.h"
 
 typedef int32_t i32;
 typedef uint32_t u32;
