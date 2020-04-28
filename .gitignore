@@ -138,5 +138,6 @@ Temporary Items
 
 # build/Testing/Temporary/LastTest.log
 build/
+build.mac/
 build.linux/
 build.win/
