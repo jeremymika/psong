@@ -31,10 +31,6 @@ find_package(Threads REQUIRED)
 
 
 
-#include(get-sdl2_image)
-#include(get-sdl2_ttf)
-include(get-sdl2)
-
 
 set(LIBUV_DEPS_DIR ${CMAKE_BINARY_DIR}/thirdparty/libuv)
 
@@ -59,8 +55,13 @@ ExternalProject_Add(
 file(GLOB SOURCES src/*.cpp src/*.c)
  
 
+#include(get-sdl2_image)
+#include(get-sdl2_ttf)
+include(get-sdl2)
+
+
 add_executable(psong ${SOURCES})
-add_dependencies(psong libuv)
+add_dependencies(psong libuv sdl2)
 
 IF (APPLE)
     FIND_LIBRARY(AUDIOTOOLBOX_LIBRARY AudioToolbox )
@@ -93,9 +94,7 @@ include_directories(${OPENGL_INCLUDE_DIR})
 #include_directories(${GLEW_INCLUDE_DIR})
 
 
-
 set(SDL2_INCLUDE_DIR ${DEPENDENCY_INSTALL_DIR}/include)
-include_directories(${SDL2_INCLUDE_DIR})
 
 set(INCLUDE_DIRS
     /usr/local/include
@@ -105,31 +104,31 @@ set(INCLUDE_DIRS
     
 include_directories(${INCLUDE_DIRS})
 
+message("This is the include path: ${INCLUDE_DIRS}")
 
 if(WIN32)
     set(LIBUV_STATIC "${LIBUV_DEPS_DIR}/src/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>/uv_a.lib")
     if (${CMAKE_SIZEOF_VOID_P} MATCHES 8)
         set(SDL2_LIBRARY "${DEPENDENCY_INSTALL_DIR}/lib/x64/SDL2.lib;${DEPENDENCY_INSTALL_DIR}/lib/x64/SDL2main.lib")
-        #install(FILES ${DEPENDENCY_INSTALL_DIR}/lib/x64/SDL2.dll DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
-        #message("copy ${DEPENDENCY_INSTALL_DIR}/lib/x64/SDL2.dll TO ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+
         add_custom_command(TARGET psong POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${DEPENDENCY_INSTALL_DIR}/lib/x64/SDL2.dll"
             "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>"
             VERBATIM)
-        else ()
+    else ()
         set(SDL2_LIBRARY "${DEPENDENCY_INSTALL_DIR}/lib/x86/SDL2.lib;${DEPENDENCY_INSTALL_DIR}/lib/x86/SDL2main.lib")
         add_custom_command(TARGET psong POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${DEPENDENCY_INSTALL_DIR}/lib/x86/SDL2.dll"
-            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>" VERBATIM)
+            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>" 
+            VERBATIM)
     endif ()   
 else()
     set(LIBUV_STATIC "${LIBUV_DEPS_DIR}/src/libuv_a.a")
     set(SDL2_LIBRARY ${DEPENDENCY_INSTALL_DIR}/lib/libSDL2.a)
 endif()
 
-message("Apple libs: ${APPLE_LIBS}")
 
 set(LINK_LIBS 
     ${LIBUV_STATIC}
