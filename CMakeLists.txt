@@ -105,11 +105,11 @@ set(INCLUDE_DIRS
     
 include_directories(${INCLUDE_DIRS})
 
-if(LINUX)
+if(UNIX AND NOT APPLE)
     set(LINUX_LIBS m)
 else()
     set(LINUX_LIBS "")
-endif(LINUX)
+endif()
 
 if(WIN32)
     set(LIBUV_STATIC "${LIBUV_DEPS_DIR}/src/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>/uv_a.lib")
@@ -154,9 +154,6 @@ if(opengl)
     target_link_libraries(psong ${GLEW_LIBRARY})
 endif(opengl)
 
-IF (LINUX)
-  target_link_libraries(psong m)
-ENDIF()
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
