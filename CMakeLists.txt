@@ -1,7 +1,7 @@
 # Created: Apr 27, 2020
 # Author:  Jeremy Mika
 
-cmake_minimum_required(VERSION 3.5.1)
+cmake_minimum_required(VERSION 3.11)
 
 project(psong VERSION 0.1.0)
 
@@ -25,10 +25,10 @@ set(DEPENDENCY_INSTALL_DIR ${CMAKE_BINARY_DIR}/thirdparty/build)
 set(DEPENDENCY_DOWNLOAD_DIR ${CMAKE_BINARY_DIR}/thirdparty/dl)
 set(DEPENDENCY_EXTRACT_DIR ${CMAKE_BINARY_DIR}/thirdparty/extracted)
 
+set(GLEW_USE_STATIC_LIBS ON)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
-
 
 
 
@@ -51,14 +51,13 @@ ExternalProject_Add(
 )
 
 
-    
-file(GLOB SOURCES src/*.cpp src/*.c)
+
+file(GLOB SOURCES src/*.cpp src/*.c thirdparty/gl3w/src/gl3w.c)
  
 
 #include(get-sdl2_image)
 #include(get-sdl2_ttf)
 include(get-sdl2)
-
 
 add_executable(psong ${SOURCES})
 add_dependencies(psong libuv sdl2)
@@ -88,6 +87,7 @@ ELSE()
     set(APPLE_LIBS "")
 ENDIF (APPLE)
 
+
 find_package(OpenGL REQUIRED)
 include_directories(${OPENGL_INCLUDE_DIR})
 #find_package(GLEW REQUIRED)
@@ -100,11 +100,16 @@ set(INCLUDE_DIRS
     /usr/local/include
     ${LIBUV_DEPS_DIR}/src/include
     ${SDL2_INCLUDE_DIR}
+    ${CMAKE_SOURCE_DIR}/thirdparty/gl3w/include
     src)
     
 include_directories(${INCLUDE_DIRS})
 
-message("This is the include path: ${INCLUDE_DIRS}")
+if(LINUX)
+    set(LINUX_LIBS m)
+else()
+    set(LINUX_LIBS "")
+endif(LINUX)
 
 if(WIN32)
     set(LIBUV_STATIC "${LIBUV_DEPS_DIR}/src/$<$<CONFIG:Debug>:Debug>$<$<CONFIG:Release>:Release>/uv_a.lib")
@@ -135,20 +140,23 @@ set(LINK_LIBS
     ${SDL2_LIBRARY}
     ${OPENGL_LIBRARIES}
     ${APPLE_LIBS}
+    ${LINUX_LIBS}
 #    ${SDL2_IMAGE_LIBRARIES}
 #    ${SDL2_TTF_LIBRARIES}
     Threads::Threads
 )
 
 
-target_link_libraries(psong ${LINK_LIBS})
+target_link_libraries(psong ${LINK_LIBS} ${CMAKE_DL_LIBS})
 
 if(opengl)
     target_link_libraries(psong ${OPENGL_gl_LIBRARY})
     target_link_libraries(psong ${GLEW_LIBRARY})
 endif(opengl)
 
-
+IF (LINUX)
+  target_link_libraries(psong m)
+ENDIF()
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
