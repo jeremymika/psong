@@ -30,26 +30,27 @@ set(GLEW_USE_STATIC_LIBS ON)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
+if(NOT EMSCRIPTEN)
 
+    set(LIBUV_DEPS_DIR ${CMAKE_BINARY_DIR}/thirdparty/libuv)
 
-set(LIBUV_DEPS_DIR ${CMAKE_BINARY_DIR}/thirdparty/libuv)
+    ExternalProject_Add(
+        libuv
+        GIT_REPOSITORY https://github.com/libuv/libuv.git
+        GIT_TAG ""
+        TMP_DIR ${LIBUV_DEPS_DIR}/tmp
+        STAMP_DIR ${LIBUV_DEPS_DIR}/stamp
+        SOURCE_DIR ${LIBUV_DEPS_DIR}/src
+        BUILD_IN_SOURCE 1
+        GIT_SHALLOW 1
 
-ExternalProject_Add(
-    libuv
-    GIT_REPOSITORY https://github.com/libuv/libuv.git
-    GIT_TAG ""
-    TMP_DIR ${LIBUV_DEPS_DIR}/tmp
-    STAMP_DIR ${LIBUV_DEPS_DIR}/stamp
-    SOURCE_DIR ${LIBUV_DEPS_DIR}/src
-    BUILD_IN_SOURCE 1
-    GIT_SHALLOW 1
+        DOWNLOAD_DIR thirdparty/libuv
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+        PREFIX "thirdparty/libuv"
+    )
 
-    DOWNLOAD_DIR thirdparty/libuv
-    INSTALL_COMMAND ""
-    TEST_COMMAND ""
-    PREFIX "thirdparty/libuv"
-)
-
+endif()
 
 
 file(GLOB SOURCES src/*.cpp src/*.c thirdparty/gl3w/src/gl3w.c)
@@ -60,7 +61,11 @@ file(GLOB SOURCES src/*.cpp src/*.c thirdparty/gl3w/src/gl3w.c)
 include(get-sdl2)
 
 add_executable(psong ${SOURCES})
-add_dependencies(psong libuv sdl2)
+if(EMSCRIPTEN)
+    add_dependencies(psong sdl2)
+else()
+    add_dependencies(psong libuv sdl2)
+endif()
 
 IF (APPLE)
     FIND_LIBRARY(AUDIOTOOLBOX_LIBRARY AudioToolbox )
@@ -90,8 +95,6 @@ ENDIF (APPLE)
 
 find_package(OpenGL REQUIRED)
 include_directories(${OPENGL_INCLUDE_DIR})
-#find_package(GLEW REQUIRED)
-#include_directories(${GLEW_INCLUDE_DIR})
 
 
 set(SDL2_INCLUDE_DIR ${DEPENDENCY_INSTALL_DIR}/include)
@@ -105,7 +108,7 @@ set(INCLUDE_DIRS
     
 include_directories(${INCLUDE_DIRS})
 
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
     set(LINUX_LIBS m)
 else()
     set(LINUX_LIBS "")
@@ -130,15 +133,21 @@ if(WIN32)
             VERBATIM)
     endif ()   
 else()
-    set(LIBUV_STATIC "${LIBUV_DEPS_DIR}/src/libuv_a.a")
-    set(SDL2_LIBRARY ${DEPENDENCY_INSTALL_DIR}/lib/libSDL2.a)
+    if(NOT EMSCRIPTEN)
+        set(LIBUV_STATIC "${LIBUV_DEPS_DIR}/src/libuv_a.a")
+        set(SDL2_LIBRARY ${DEPENDENCY_INSTALL_DIR}/lib/libSDL2.a)
+    else()
+        set(LIBUV_STATIC "")
+        set(SDL2_LIBRARY "")
+        endif()
+
 endif()
 
 
 set(LINK_LIBS 
     ${LIBUV_STATIC}
     ${SDL2_LIBRARY}
-    ${OPENGL_LIBRARIES}
+#    ${OPENGL_LIBRARIES}
     ${APPLE_LIBS}
     ${LINUX_LIBS}
 #    ${SDL2_IMAGE_LIBRARIES}
@@ -146,12 +155,19 @@ set(LINK_LIBS
     Threads::Threads
 )
 
+message("Libs: ${LINK_LIBS} ${CMAKE_DL_LIBS}")
 
 target_link_libraries(psong ${LINK_LIBS} ${CMAKE_DL_LIBS})
 
+if(EMSCRIPTEN)
+    message("Compiling for emscripten!") 
+    set_target_properties(psong PROPERTIES LINK_FLAGS   "-s MIN_WEBGL_VERSION=2 -s USE_FREETYPE=1 -s USE_SDL=2 -s DISABLE_EXCEPTION_CATCHING=0 -s DEMANGLE_SUPPORT=1 -s SAFE_HEAP=1 -O2 -s FULL_ES3=1  -s WASM=1 -s ASSERTIONS=1 -s GL_ASSERTIONS=1  -std=c++11 -s OFFSCREENCANVAS_SUPPORT=1")
+    # set_target_properties(psong PROPERTIES LINK_FLAGS "-s USE_FREETYPE=1 -s USE_SDL=2 -s DISABLE_EXCEPTION_CATCHING=0 -s DEMANGLE_SUPPORT=1 -s SAFE_HEAP=1 -O2 -s ASSERTIONS=1  -std=c++11 -s FULL_ES3=1 -s USE_WEBGL2=1 -s OFFSCREENCANVAS_SUPPORT=1")
+endif()
+
 if(opengl)
     target_link_libraries(psong ${OPENGL_gl_LIBRARY})
-    target_link_libraries(psong ${GLEW_LIBRARY})
+#    target_link_libraries(psong ${GLEW_LIBRARY})
 endif(opengl)
 
 

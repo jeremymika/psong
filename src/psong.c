@@ -1,11 +1,18 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
+#ifdef __EMSCRIPTEN__
+    #include <emscripten.h>
+    #include "SDL2/SDL.h"
+    #include "GLES3/gl3.h"
+#else
+    #include "GL/gl3w.h"
+    #include "SDL2/SDL.h"
+    #include "SDL2/SDL_opengl.h"
+#endif
 
-
-#include "SDL2/SDL.h"
-//#include "SDL2/SDL_opengl.h"
-//#include "GL/glcorearb.h"
-#include "GL/gl3w.h"
+#include "GL/glcorearb.h"
 
 typedef int32_t i32;
 typedef uint32_t u32;
@@ -17,6 +24,7 @@ u32 WindowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
 
 SDL_Window *Window;
 SDL_GLContext Context;
+
 b32 Running = 1;
 b32 FullScreen = 0;
 
@@ -51,7 +59,12 @@ static inline void mat4x4_ortho( t_mat4x4 out, float left, float right, float bo
 }
 
 static const char * vertex_shader =
+#ifdef __EMSCRIPTEN__
+    "#version 300 es\n"
+    "precision mediump float;\n"
+#else
     "#version 150\n"
+#endif
     "in vec2 i_position;\n"
     "in vec4 i_color;\n"
     "out vec4 v_color;\n"
@@ -62,7 +75,12 @@ static const char * vertex_shader =
     "}\n";
 
 static const char * fragment_shader =
+#ifdef __EMSCRIPTEN__
+    "#version 300 es\n"
+    "precision mediump float;\n"
+#else
     "#version 150\n"
+#endif
     "in vec4 v_color;\n"
     "out vec4 o_color;\n"
     "void main() {\n"
@@ -75,6 +93,27 @@ typedef enum t_attrib_id
     attrib_color
 } t_attrib_id;
 
+GLuint vao, vbo;
+
+void render()
+{
+
+        glBindVertexArray( vao );
+        glDrawArrays( GL_TRIANGLES, 0, 6 );
+
+        SDL_GL_SwapWindow( Window );
+}
+
+void update(){
+    SDL_Event event;
+    while( SDL_PollEvent(&event) ) {
+        if(event.type == SDL_QUIT) {
+            //quitting = true;
+        }
+    }
+
+    render();
+};
 
 /// GLSL version string.
 static const char* g_glsl_version;
@@ -85,8 +124,10 @@ int main(int argc, char **argv)
     SDL_Init( SDL_INIT_EVERYTHING );
 
     g_glsl_version = "#version 150";
+
+    #ifdef __APPLE__
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Always required on Mac
- 
+    #endif
     SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
     SDL_GL_SetAttribute( SDL_GL_ACCELERATED_VISUAL, 1 );
     SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 8 );
@@ -94,17 +135,20 @@ int main(int argc, char **argv)
     SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, 8 );
     SDL_GL_SetAttribute( SDL_GL_ALPHA_SIZE, 8 );
 
+    #ifndef __EMSCRIPTEN__
     SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE );
-
     SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, 3 );
     SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 2 );
-
+    #else
+    SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, 3 );
+    SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 0 );
+    #endif
 
 
     Window = SDL_CreateWindow("Psong!", 100, 100, WinWidth, WinHeight, WindowFlags);
     Context = SDL_GL_CreateContext(Window);
 
-
+#ifndef __EMSCRIPTEN__
     if (gl3wInit()) {
             fprintf(stderr, "failed to initialize OpenGL\n");
             return -1;
@@ -113,8 +157,11 @@ int main(int argc, char **argv)
             fprintf(stderr, "OpenGL 3.2 not supported\n");
             return -1;
     }
-    printf("OpenGL %s, GLSL %s\n", glGetString(GL_VERSION),
-            glGetString(GL_SHADING_LANGUAGE_VERSION));
+#endif
+    const GLubyte *version = glGetString(GL_VERSION);
+    const GLubyte *glsl_version = glGetString(GL_SHADING_LANGUAGE_VERSION);
+
+    printf("OpenGL %s, GLSL %s\n ", version, glsl_version);
 
     GLuint vs, fs, program;
 
@@ -168,7 +215,6 @@ int main(int argc, char **argv)
 
     glUseProgram( program );
 
-    GLuint vao, vbo;
 
     glGenVertexArrays( 1, &vao );
     glGenBuffers( 1, &vbo );
@@ -198,6 +244,10 @@ int main(int argc, char **argv)
     mat4x4_ortho( projection_matrix, 0.0f, (float)WinWidth, (float)WinHeight, 0.0f, 0.0f, 100.0f );
     glUniformMatrix4fv( glGetUniformLocation( program, "u_projection_matrix" ), 1, GL_FALSE, projection_matrix );
 
+#ifdef __EMSCRIPTEN__
+    // register update as callback
+    emscripten_set_main_loop(update, 0, 1);
+#else
     while(Running)
     {
     SDL_Event Event;
@@ -217,7 +267,7 @@ int main(int argc, char **argv)
                 FullScreen = !FullScreen;
                 if (FullScreen)
                 {
-                    SDL_SetWindowFullscreen(Window, WindowFlags | SDL_WINDOW_FULLSCREEN_DESKTOP);
+                    SDL_SetWindowFullscreen(Window, WindowFlags | SDL_WINDOW_FULLSCREEN);
                 }
                 else
                 {
@@ -234,29 +284,11 @@ int main(int argc, char **argv)
         }
     }
 
-
-        glBindVertexArray( vao );
-        glDrawArrays( GL_TRIANGLES, 0, 6 );
-
-        SDL_GL_SwapWindow( Window );
-  /*      
-    glViewport(0, 0, WinWidth, WinHeight);
-    glDisable( GL_DEPTH_TEST );
-    glClearColor(0.1f, 0.1f, 0.3f, 0.f);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, WinWidth, WinHeight, 0, -10, 10);
-
-    //Back to the modelview so we can draw stuff
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    */
-
-
+    render();
+   
     }
+
+#endif
 
     SDL_GL_DeleteContext(Context);
 
