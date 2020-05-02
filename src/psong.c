@@ -18,9 +18,9 @@ typedef int32_t i32;
 typedef uint32_t u32;
 typedef int32_t b32;
 
-#define WinWidth 640
-#define WinHeight 480
-u32 WindowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
+#define WinWidth 1024
+#define WinHeight 600
+u32 WindowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
 
 SDL_Window *Window;
 SDL_GLContext Context;
@@ -95,8 +95,25 @@ typedef enum t_attrib_id
 
 GLuint vao, vbo;
 
+GLfloat scale = 1.0f;
 void render()
 {
+
+    scale -= 0.001f;
+    if(scale < 0.5f)
+        scale = 1.0f;
+
+    const GLfloat g_vertex_buffer_data[] = {
+        /*  R, G, B, A, X, Y  */
+        1, 0, 0, 1, 0, 0,
+        0, 1, 0, 1, WinWidth * scale, 0,
+        0, 0, 1, 1, WinWidth * scale, WinHeight * scale,
+
+        1, 0, 0, 1, 0, 0,
+        0, 0, 1, 1, WinWidth * scale, WinHeight * scale,
+        1, 1, 1, 1, 0, WinHeight * scale};
+
+    glBufferData( GL_ARRAY_BUFFER, sizeof( g_vertex_buffer_data ), g_vertex_buffer_data, GL_STATIC_DRAW );
 
         glBindVertexArray( vao );
         glDrawArrays( GL_TRIANGLES, 0, 6 );
@@ -104,11 +121,51 @@ void render()
         SDL_GL_SwapWindow( Window );
 }
 
+//Number of available devices
+int gRecordingDeviceCount = 0;
+
+//Recieved audio spec
+SDL_AudioSpec gReceivedRecordingSpec;
+SDL_AudioSpec gReceivedPlaybackSpec;
+
+//Audio device IDs
+SDL_AudioDeviceID recordingDeviceId = 0;
+
+void audioRecordingCallback( void* userdata, Uint8* stream, int len )
+{
+    //Copy audio from stream
+    //memcpy( &gRecordingBuffer[ gBufferBytePosition ], stream, len );
+
+    //Move along buffer
+    //gBufferBytePosition += len;
+}
+
+
 void update(){
-    SDL_Event event;
-    while( SDL_PollEvent(&event) ) {
-        if(event.type == SDL_QUIT) {
-            //quitting = true;
+    SDL_Event Event;
+
+    glClear( GL_COLOR_BUFFER_BIT );
+
+    while (SDL_PollEvent(&Event))
+    {
+        if (Event.type == SDL_KEYDOWN)
+        {
+            switch (Event.key.keysym.sym)
+            {
+            case 'f':
+                FullScreen = !FullScreen;
+                if (FullScreen)
+                {
+                    SDL_SetWindowFullscreen(Window, WindowFlags | SDL_WINDOW_FULLSCREEN);
+                }
+                else
+                {
+                    SDL_SetWindowFullscreen(Window, WindowFlags);
+                }
+                break;
+            default:
+                break;
+            }
         }
     }
 
@@ -121,7 +178,7 @@ static const char* g_glsl_version;
 int main(int argc, char **argv)
 {
     printf("Psong (c) 2020 by Jeremy Mika\n");
-    SDL_Init( SDL_INIT_EVERYTHING );
+    SDL_Init( SDL_INIT_AUDIO | SDL_INIT_VIDEO  );
 
     g_glsl_version = "#version 150";
 
@@ -145,7 +202,7 @@ int main(int argc, char **argv)
     #endif
 
 
-    Window = SDL_CreateWindow("Psong!", 100, 100, WinWidth, WinHeight, WindowFlags);
+    Window = SDL_CreateWindow("Psong!",100, 100, WinWidth, WinHeight, WindowFlags);
     Context = SDL_GL_CreateContext(Window);
 
 #ifndef __EMSCRIPTEN__
@@ -243,6 +300,52 @@ int main(int argc, char **argv)
     t_mat4x4 projection_matrix;
     mat4x4_ortho( projection_matrix, 0.0f, (float)WinWidth, (float)WinHeight, 0.0f, 0.0f, 100.0f );
     glUniformMatrix4fv( glGetUniformLocation( program, "u_projection_matrix" ), 1, GL_FALSE, projection_matrix );
+
+    // Do some audio stuff
+
+    //Get capture device count
+    gRecordingDeviceCount = SDL_GetNumAudioDevices( SDL_TRUE );
+
+    //No recording devices
+    if( gRecordingDeviceCount < 1 )
+    {
+        printf( "Unable to get audio capture device! SDL Error: %s\n", SDL_GetError() );
+    }
+    //At least one device connected
+    else
+    {
+        //Cap recording device count
+        if( gRecordingDeviceCount > 10 )
+        {
+            gRecordingDeviceCount = 10;
+        }
+
+        //Render device names
+        for( int i = 0; i < gRecordingDeviceCount; ++i )
+        {
+            //Get capture device name
+            printf("    %d: %s\n", i, SDL_GetAudioDeviceName(i, SDL_TRUE));
+        }
+    } 
+
+    //Default audio spec
+    SDL_AudioSpec desiredRecordingSpec;
+    SDL_zero(desiredRecordingSpec);
+    desiredRecordingSpec.freq = 44100;
+    desiredRecordingSpec.format = AUDIO_F32;
+    desiredRecordingSpec.channels = 2;
+    desiredRecordingSpec.samples = 4096;
+    desiredRecordingSpec.callback = audioRecordingCallback;
+
+    //Open recording device
+    recordingDeviceId = SDL_OpenAudioDevice( SDL_GetAudioDeviceName( 0, SDL_TRUE ), SDL_TRUE, &desiredRecordingSpec, &gReceivedRecordingSpec, SDL_AUDIO_ALLOW_FORMAT_CHANGE|SDL_AUDIO_ALLOW_FREQUENCY_CHANGE );
+ //Device failed to open
+    if( recordingDeviceId == 0 )
+    {
+        //Report error
+        printf( "Failed to open recording device! SDL Error: %s", SDL_GetError() );
+        //currentState = ERROR;
+    }
 
 #ifdef __EMSCRIPTEN__
     // register update as callback
